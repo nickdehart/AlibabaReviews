@@ -26,6 +26,11 @@ pipenv run scrapy crawl reviews -a start_url="https://www.aliexpress.com/item/IT
 
 #### Output:
 - Outputs a .json file "reviews-ITEM_NUMBER.json" with the scraped results.
+- Scrapes the first 10 pages of each star category.
+   - Max 50 pages of reviews
+   - 10 pages of 5 star reviews
+   - 10 pages of 4 star reviews
+   - etc...
 - JSON format is as follows:
 ```
 {
