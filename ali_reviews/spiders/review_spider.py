@@ -9,7 +9,7 @@ class ReviewsSpider(scrapy.Spider):
    def __init__(self, *args, **kwargs):
       super(ReviewsSpider, self).__init__(*args, **kwargs) 
       try:
-         productId = re.search("[0-9]{11}", kwargs.get('start_url'))
+         productId = re.search("[0-9]{6,15}", kwargs.get('start_url'))
          productId = productId.group(0)
          self.productId = productId
          self.info = {}
@@ -36,7 +36,7 @@ class ReviewsSpider(scrapy.Spider):
                'productId': self.productId,
                'companyId': '',
                'evaStarFilterValue': rating,
-               'evaSortValue': 'sortdefault@feedback',
+               'evaSortValue': 'sortlarest@feedback',
                'page': str(i),
                'currentPage': str(i-1),
                'startValidDate': '',
@@ -44,7 +44,7 @@ class ReviewsSpider(scrapy.Spider):
                'withPictures': 'false',
                'withPersonalInfo': 'false',
                'withAdditionalFeedback': 'false',
-               'onlyFromMyCountry': 'false',
+               'onlyFromMyCountry': 'true',
                'version': '',
                'isOpened': 'true',
                'translate':  'Y', 
