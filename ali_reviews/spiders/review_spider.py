@@ -1,6 +1,7 @@
 import scrapy
 from scrapy.http import FormRequest
 import re
+import math
 import json
 
 class ReviewsSpider(scrapy.Spider):
@@ -9,17 +10,49 @@ class ReviewsSpider(scrapy.Spider):
    def __init__(self, *args, **kwargs):
       super(ReviewsSpider, self).__init__(*args, **kwargs) 
       try:
-         productId = re.search("[0-9]{6,15}", kwargs.get('start_url'))
+         productId = re.search("[0-9]{6,15}", kwargs.get('id'))
          productId = productId.group(0)
          self.productId = productId
-         self.info = {}
+         self.info = {
+            'stars': {
+               '5 Stars': 0,
+               '4 Stars': 0,
+               '3 Stars': 0,
+               '2 Stars': 0,
+               '1 Stars': 0,
+            },
+            'reviews': []
+         }
       except Exception as e:
          self.log("No Product ID Found!!!")
          self.log(e)
          exit(1)
 
    def start_requests(self):
+      url = "https://feedback.aliexpress.com/display/productEvaluation.htm?v=2&productId=" + self.productId + \
+      "&ownerMemberId=233046329&companyId=242229398&memberType=seller&startValidDate=&i18n=true"
+      yield scrapy.Request(url, callback=self.get_stats, priority=1)
 
+   def get_stats(self, response):
+      info = {
+         'stars': {
+            '5 Stars': 0,
+            '4 Stars': 0,
+            '3 Stars': 0,
+            '2 Stars': 0,
+            '1 Stars': 0,
+         },
+         'reviews': []
+      }
+      stars = response.css('body div.feedback-container div.rate-detail ul.rate-list li')
+      info['total'] = int(response.css('body div.feedback-container div.customer-reviews::text').get().replace('Customer Reviews (', '').replace(')', ''))
+      info['stars']['5 Stars'] = int(stars[0].css('span.r-num::text').get().replace('%', ''))
+      info['stars']['4 Stars'] = int(stars[1].css('span.r-num::text').get().replace('%', ''))
+      info['stars']['3 Stars'] = int(stars[2].css('span.r-num::text').get().replace('%', ''))
+      info['stars']['2 Stars'] = int(stars[3].css('span.r-num::text').get().replace('%', ''))
+      info['stars']['1 Stars'] = int(stars[4].css('span.r-num::text').get().replace('%', ''))
+      info['avg'] = float(response.css('body div.feedback-container div.rate-detail div.rate-score span.rate-score-number b::text').get())
+      
       ratings = [
          '5 Stars',
          '4 Stars',
@@ -29,7 +62,10 @@ class ReviewsSpider(scrapy.Spider):
       ]
       
       for rating in ratings:
-         for i in range(1, 11):
+         end = 11
+         if rating != '5 Stars':
+            end = math.ceil(info['stars'][rating] / 10) + 1
+         for i in range(1, end):
             frmdata = {
                'ownerMemberId': '222312782',
                'memberType': 'seller',
@@ -44,7 +80,7 @@ class ReviewsSpider(scrapy.Spider):
                'withPictures': 'false',
                'withPersonalInfo': 'false',
                'withAdditionalFeedback': 'false',
-               'onlyFromMyCountry': 'true',
+               'onlyFromMyCountry': 'false',
                'version': '',
                'isOpened': 'true',
                'translate':  'Y', 
@@ -56,27 +92,21 @@ class ReviewsSpider(scrapy.Spider):
 
    def parse(self, response):
 
-      stars = response.css('body div.feedback-container div.rate-detail ul.rate-list li')
-      self.info['count'] = int(response.css('body div.feedback-container div.customer-reviews::text').get().replace('Customer Reviews (', '').replace(')', ''))
-      if 'stars' not in self.info:
-         self.info['stars'] = {}
-      self.info['stars']['5'] = stars[0].css('span.r-num::text').get()
-      self.info['stars']['4'] = stars[1].css('span.r-num::text').get()
-      self.info['stars']['3'] = stars[2].css('span.r-num::text').get()
-      self.info['stars']['2'] = stars[3].css('span.r-num::text').get()
-      self.info['stars']['1'] = stars[4].css('span.r-num::text').get()
-      self.info['avg'] = float(response.css('body div.feedback-container div.rate-detail div.rate-score span.rate-score-number b::text').get())
-      if 'reviews' not in self.info:
-         self.info['reviews'] = []
-
       for review in response.css('body div.feedback-container div.feedback-list-wrap div.feedback-item'):
          starValue = review.css('div.fb-main div.f-rate-info span.star-view span').get()
          starValue = re.search("[0-9]{2,3}", starValue)
          starValue = int(starValue.group(0))
-         rating = 2 if starValue > 20 else 1
-         rating = 3 if starValue > 40 else 1
-         rating = 4 if starValue > 60 else 1
-         rating = 5 if starValue > 80 else 1
+         rating = 0
+         if starValue == 100:
+            rating = 5
+         elif starValue == 80:
+            rating = 4
+         elif starValue == 60:
+            rating = 3
+         elif starValue == 40:
+            rating = 2
+         else:
+            rating = 1
 
          images = []
          for image in review.css('div.fb-main div.f-content dl.buyer-review dd.r-photo-list ul.util-clearfix'):
@@ -98,4 +128,4 @@ class ReviewsSpider(scrapy.Spider):
       with open(filename, 'w') as f:
          # this file gets rewritten up to 50 times.
          # should look for a better way.
-         json.dump(self.info, f)
+         json.dump(self.info['reviews'], f)
