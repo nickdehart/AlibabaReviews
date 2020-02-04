@@ -17,15 +17,15 @@ pipenv install
 
 #### Usage:
 ```
-scrapy crawl reviews -a id="https://www.aliexpress.com/item/ITEM_NUMBER.html"
+scrapy crawl reviews -a id="ITEM_NUMBER" -o OUTFILE.json
 - OR -
-pipenv run scrapy crawl reviews -a id="https://www.aliexpress.com/item/ITEM_NUMBER.html"
+pipenv run scrapy crawl reviews -a id="ITEM_NUMBER" -o OUTFILE.json
 ```
 - Scraper runs a regular expression to find an 6-15 digit number in "id" parameter.
 - Can just feed an 11-digit item number alone or the url as above.
 
 #### Output:
-- Outputs a .json file "reviews-ITEM_NUMBER.json" with the scraped results.
+- Outputs a .json file "OUTFILE.json" with the scraped results.
 - Crawls one page of aliexpress to get stats of reviews.
    - Number of 5, 4, 3, 2, 1 star reviews
 - Uses that info to determine how many pages of reviews will be scraped.
@@ -34,7 +34,7 @@ pipenv run scrapy crawl reviews -a id="https://www.aliexpress.com/item/ITEM_NUMB
    - Minimum is 10 reviews on 1 page.
 - JSON format is as follows:
 ```
-'reviews': [
+[
    // Array of reviews
    {
       'username': (String) person who left review,

@@ -13,16 +13,6 @@ class ReviewsSpider(scrapy.Spider):
          productId = re.search("[0-9]{6,15}", kwargs.get('id'))
          productId = productId.group(0)
          self.productId = productId
-         self.info = {
-            'stars': {
-               '5 Stars': 0,
-               '4 Stars': 0,
-               '3 Stars': 0,
-               '2 Stars': 0,
-               '1 Stars': 0,
-            },
-            'reviews': []
-         }
       except Exception as e:
          self.log("No Product ID Found!!!")
          self.log(e)
@@ -36,22 +26,15 @@ class ReviewsSpider(scrapy.Spider):
    def get_stats(self, response):
       info = {
          'stars': {
-            '5 Stars': 0,
-            '4 Stars': 0,
-            '3 Stars': 0,
-            '2 Stars': 0,
-            '1 Stars': 0,
+            '5 Stars': int(response.xpath('/html/body/div/div[2]/ul/li[1]/span[3]/text()').get().replace('%', '')),
+            '4 Stars': int(response.xpath('/html/body/div/div[2]/ul/li[2]/span[3]/text()').get().replace('%', '')),
+            '3 Stars': int(response.xpath('/html/body/div/div[2]/ul/li[3]/span[3]/text()').get().replace('%', '')),
+            '2 Stars': int(response.xpath('/html/body/div/div[2]/ul/li[4]/span[3]/text()').get().replace('%', '')),
+            '1 Stars': int(response.xpath('/html/body/div/div[2]/ul/li[5]/span[3]/text()').get().replace('%', '')),
          },
-         'reviews': []
+         'total': int(response.xpath('/html/body/div/div[1]/text()').get().replace('Customer Reviews (', '').replace(')', '')),
+         'avg': float(response.xpath('/html/body/div/div[2]/div/span/b/text()').get())
       }
-      stars = response.css('body div.feedback-container div.rate-detail ul.rate-list li')
-      info['total'] = int(response.css('body div.feedback-container div.customer-reviews::text').get().replace('Customer Reviews (', '').replace(')', ''))
-      info['stars']['5 Stars'] = int(stars[0].css('span.r-num::text').get().replace('%', ''))
-      info['stars']['4 Stars'] = int(stars[1].css('span.r-num::text').get().replace('%', ''))
-      info['stars']['3 Stars'] = int(stars[2].css('span.r-num::text').get().replace('%', ''))
-      info['stars']['2 Stars'] = int(stars[3].css('span.r-num::text').get().replace('%', ''))
-      info['stars']['1 Stars'] = int(stars[4].css('span.r-num::text').get().replace('%', ''))
-      info['avg'] = float(response.css('body div.feedback-container div.rate-detail div.rate-score span.rate-score-number b::text').get())
       
       ratings = [
          '5 Stars',
@@ -60,12 +43,15 @@ class ReviewsSpider(scrapy.Spider):
          '2 Stars',
          '1 Stars',
       ]
-      
+
       for rating in ratings:
          end = 11
          if rating != '5 Stars':
             end = math.ceil(info['stars'][rating] / 10) + 1
          for i in range(1, end):
+            num = 10
+            if i == end - 1 and info['stars'][rating] < 10:
+               num = info['stars'][rating]
             frmdata = {
                'ownerMemberId': '222312782',
                'memberType': 'seller',
@@ -88,44 +74,39 @@ class ReviewsSpider(scrapy.Spider):
                'v': '2'
             }
             url = "https://feedback.aliexpress.com/display/productEvaluation.htm"
-            yield FormRequest(url, callback=self.parse, formdata=frmdata)
+            yield FormRequest(url, callback=self.parse, formdata=frmdata, meta={ 'num': num })
 
    def parse(self, response):
 
-      for review in response.css('body div.feedback-container div.feedback-list-wrap div.feedback-item'):
-         starValue = review.css('div.fb-main div.f-rate-info span.star-view span').get()
-         starValue = re.search("[0-9]{2,3}", starValue)
-         starValue = int(starValue.group(0))
-         rating = 0
-         if starValue == 100:
-            rating = 5
-         elif starValue == 80:
-            rating = 4
-         elif starValue == 60:
-            rating = 3
-         elif starValue == 40:
-            rating = 2
-         else:
-            rating = 1
+      for i in range(1, response.meta['num']):
+         try:
+            starValue = response.xpath('/html/body/div/div[5]/div[' + str(i) + ']/div[2]/div[1]/span/span').get()
+            starValue = re.search("[0-9]{2,3}", starValue)
+            starValue = int(starValue.group(0))
+            rating = 0
+            if starValue == 100:
+               rating = 5
+            elif starValue == 80:
+               rating = 4
+            elif starValue == 60:
+               rating = 3
+            elif starValue == 40:
+               rating = 2
+            else:
+               rating = 1
 
-         images = []
-         for image in review.css('div.fb-main div.f-content dl.buyer-review dd.r-photo-list ul.util-clearfix'):
-            images.append(image.css('li.pic-view-item img::attr(src)').get())
+            images = response.xpath('/html/body/div/div[5]/div[' + str(i) + ']/div[2]/div[3]/dl/dd/ul')
 
-         obj = {
-            'username': review.css('div.fb-user-info span.user-name a::text').get(),
-            'country': review.css('div.fb-user-info div.user-country b::text').get(),
-            'rating': rating,
-            'text': review.css('div.fb-main div.f-content dl.buyer-review dt.buyer-feedback span::text').get(),
-            'date': review.css('div.fb-main div.f-content dl.buyer-review dt.buyer-feedback span.r-time-new::text').get(),
-            'images': images,
-            'useful': int(review.css('div.fb-main div.f-content dl.buyer-review div.j-digg-info-new span.thf-digg-useful span.thf-digg-num::text').get()),
-            'useless': int(review.css('div.fb-main div.f-content dl.buyer-review div.j-digg-info-new span.thf-digg-useless span.thf-digg-num::text').get())
-         }
-         self.info['reviews'].append(obj)
+            yield {
+               'username': response.xpath('/html/body/div/div[5]/div[' + str(i) + ']/div[1]/span/a/text()').get(),
+               'country': response.xpath('/html/body/div/div[5]/div[' + str(i) + ']/div[1]/div/b/text()').get(),
+               'rating': rating,
+               'text': response.xpath('/html/body/div/div[5]/div[' + str(i) + ']/div[2]/div[3]/dl/dt/span[1]/text()').get(),
+               'date': response.xpath('/html/body/div/div[5]/div[' + str(i) + ']/div[2]/div[3]/dl/dt/span[2]/text()').get(),
+               'images': images.css('li.pic-view-item img::attr(src)').getall(),
+               'useful': int(response.xpath('/html/body/div/div[5]/div[' + str(i) + ']/div[2]/div[3]/dl/div/span[2]/span[2]/text()').get()),
+               'useless': int(response.xpath('/html/body/div/div[5]/div[' + str(i) + ']/div[2]/div[3]/dl/div/span[3]/span[2]/text()').get()),
+            }
 
-      filename = 'reviews-%s.json' % self.productId
-      with open(filename, 'w') as f:
-         # this file gets rewritten up to 50 times.
-         # should look for a better way.
-         json.dump(self.info['reviews'], f)
+         except Exception as e:
+            self.log(e)
