@@ -98,6 +98,7 @@ class ReviewsSpider(scrapy.Spider):
             images = response.xpath('/html/body/div/div[5]/div[' + str(i) + ']/div[2]/div[3]/dl/dd/ul')
 
             yield {
+               'id': self.productId,
                'username': response.xpath('/html/body/div/div[5]/div[' + str(i) + ']/div[1]/span/a/text()').get(),
                'country': response.xpath('/html/body/div/div[5]/div[' + str(i) + ']/div[1]/div/b/text()').get(),
                'rating': rating,
